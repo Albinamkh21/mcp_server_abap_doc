@@ -1,5 +1,6 @@
 services:
   documentation-mcp-server:
+  container_name: mcp-server-abap-doc
     build: 
         context: .
         dockerfile: Dockerfile
