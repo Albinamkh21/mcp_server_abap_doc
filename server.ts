@@ -69,6 +69,51 @@ export class AbapAdtServer extends Server {
 
     private serializeResult(result: any) {
         try {
+            if (!result) return { content: [{ type: 'text', text: 'No data returned from SAP' }] };
+    
+            // 1. Прямой возврат строк (код, логи)
+            if (typeof result === 'string') {
+                return { content: [{ type: 'text', text: result.trim() }] };
+            }
+    
+            // 2. Глубокая очистка
+            const clean = JSON.parse(JSON.stringify(result, (key, value) => {
+            
+                const blackList = ['links', 'etag', 'annex', 'changed_by', 'created_by', 'changed_at'];
+                if (blackList.includes(key)) return undefined;
+                if (typeof value === 'bigint') return value.toString();
+                return value;
+            }));
+    
+            // 3. Форматирование массива для экономии контекста
+            let finalOutput: string;
+            if (Array.isArray(clean)) {
+                if (clean.length === 0) {
+                    finalOutput = "Empty list";
+                } else {
+                   
+                    finalOutput = JSON.stringify(clean, null, 1); 
+                }
+            } else {
+                finalOutput = JSON.stringify(clean, null, 2);
+            }
+    
+            return {
+                content: [{ type: 'text', text: finalOutput }]
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Serialization error:', error);
+            return {
+                content: [{ type: 'text', text: `Error processing SAP response: ${errorMessage}` }],
+                isError: true
+            };
+        }
+    }
+
+    /*
+    private serializeResult(result: any) {
+        try {
             return {
                 content: [{
                     type: 'text',
@@ -84,6 +129,7 @@ export class AbapAdtServer extends Server {
             ));
         }
     }
+    */
 
     private handleError(error: unknown) {
         if (!(error instanceof Error)) {
