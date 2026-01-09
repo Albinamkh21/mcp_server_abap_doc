@@ -169,8 +169,11 @@ export class ObjectHandler extends BaseHandler {
         const startTime = performance.now();
         try {
             await this.adtclient.login();
+
+            const searchQuery = args.query.replace(/\.\*/g, '*');
+
             const results = await this.adtclient.searchObject(
-                args.query
+               searchQuery
             );
             this.trackRequest(startTime, true);
             return results; /*{
@@ -258,7 +261,7 @@ export class ObjectHandler extends BaseHandler {
                 args.package_name
             );
             this.trackRequest(startTime, true);
-            return nodeContents; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -268,7 +271,7 @@ export class ObjectHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

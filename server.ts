@@ -71,18 +71,16 @@ export class AbapAdtServer extends Server {
         try {
             if (!result) return { content: [{ type: 'text', text: 'No data returned from SAP' }] };
     
-            // 1. ОБРАБОТКА КОДА (Mariofoo style)
-            // Если это строка, проверяем, не XML ли это, и чистим его
+            // 1. Обработка сырого кода или XML
             if (typeof result === 'string') {
                 let text = result.trim();
                 if (text.startsWith('<?xml') || text.includes('<adt:')) {
-                    // Оставляем только текст между тегами или удаляем сами теги
                     text = text.replace(/<[^>]*>?/gm, '').trim(); 
                 }
                 return { content: [{ type: 'text', text: text }] };
             }
     
-            // 2. ОЧИСТКА ОБЪЕКТОВ
+            // 2. Очистка от метаданных
             const blackList = ['links', 'etag', 'annex', 'changed_by', 'created_by', 'changed_at', 'parent_uri'];
             const clean = JSON.parse(JSON.stringify(result, (key, value) => {
                 if (blackList.includes(key)) return undefined;
@@ -90,35 +88,35 @@ export class AbapAdtServer extends Server {
                 return value;
             }));
     
-            // 3. ПРЕОБРАЗОВАНИЕ В ЧИТАЕМЫЙ СПИСОК (Вместо JSON.stringify массивов)
-            let finalOutput: string;
+            // 3. Обработка списков (Самое важное!)
             if (Array.isArray(clean)) {
-                if (clean.length === 0) {
-                    finalOutput = "Empty list";
-                } else {
-                    // ПРЕВРАЩАЕМ В ТЕКСТОВУЮ ТАБЛИЦУ/СПИСОК
-                    // LLM понимает это в 10 раз лучше, чем JSON массив
-                    finalOutput = clean.slice(0, 50).map(item => {
-                        const name = item.name || item.ObjectName || '';
-                        const type = item.type || item.ObjectType || '';
-                        const desc = item.description || '';
-                        return `- ${name} (${type}) ${desc}`;
-                    }).join('\n');
+                if (clean.length === 0) return { content: [{ type: 'text', text: 'Empty list' }] };
     
-                    if (clean.length > 50) {
-                        finalOutput += `\n\n...and ${clean.length - 50} more objects.`;
-                    }
-                }
-            } else {
-                // Если это один объект (например, структура таблицы), оставляем JSON, но красивый
-                finalOutput = JSON.stringify(clean, null, 2);
+                const finalOutput = clean.slice(0, 50).map(item => {
+                    // Пробуем ВСЕ возможные варианты имен полей от разных хендлеров SAP
+                    const name = item.name || item.ObjectName || item.title || item.displayName || 'Unknown';
+                    const type = item.type || item.ObjectType || item.kind || 'OBJ';
+                    const desc = item.description || item.visibility || '';
+                    const url = item.uri || item.path || '';
+    
+                    // Формируем строку так, чтобы n8n видел и имя, и URL для следующего шага
+                    return `- ${name} [${type}] ${desc} | URL: ${url}`.trim();
+                }).join('\n');
+    
+                return { 
+                    content: [{ 
+                        type: 'text', 
+                        text: clean.length > 50 ? `${finalOutput}\n\n...and ${clean.length - 50} more.` : finalOutput 
+                    }] 
+                };
             }
     
-            return { content: [{ type: 'text', text: finalOutput }] };
+            // 4. Одиночный объект
+            return { content: [{ type: 'text', text: JSON.stringify(clean, null, 2) }] };
+    
         } catch (error) {
-            console.error('Serialization error:', error);
             return {
-                content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+                content: [{ type: 'text', text: `Error during serialization: ${String(error)}` }],
                 isError: true
             };
         }
