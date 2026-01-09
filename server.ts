@@ -69,54 +69,61 @@ export class AbapAdtServer extends Server {
 
     private serializeResult(result: any) {
         try {
+            // Если данных нет совсем
             if (!result) return { content: [{ type: 'text', text: 'No data returned from SAP' }] };
     
-            // 1. Обработка сырого кода или XML
+            // 1. ОБРАБОТКА СТРОК (Код, XML)
+            // handleGetObjectSourceCode возвращает чистую строку
             if (typeof result === 'string') {
                 let text = result.trim();
-                if (text.startsWith('<?xml') || text.includes('<adt:')) {
+                // Чистим XML если он пришел в сыром виде
+                if (text.startsWith('<?xml')) {
                     text = text.replace(/<[^>]*>?/gm, '').trim(); 
                 }
                 return { content: [{ type: 'text', text: text }] };
             }
     
-            // 2. Очистка от метаданных
-            const blackList = ['links', 'etag', 'annex', 'changed_by', 'created_by', 'changed_at', 'parent_uri'];
-            const clean = JSON.parse(JSON.stringify(result, (key, value) => {
+            // 2. ОБРАБОТКА МАССИВОВ (Результаты поиска, компоненты класса, история версий)
+            // handleGetObjects и handleClassComponents возвращают массивы объектов
+            if (Array.isArray(result)) {
+                if (result.length === 0) return { content: [{ type: 'text', text: 'Empty list' }] };
+    
+                const finalOutput = result.slice(0, 50).map(item => {
+                    // Прямой доступ к полям библиотеки abap-adt-api
+                    // Имя может быть в разных полях в зависимости от типа объекта
+                    const name = item.name || item.title || item.ObjectName || 'Unknown';
+                    const type = item.type || item.ObjectType || item.kind || '';
+                    const desc = item.description || item.visibility || '';
+                    const url = item.uri || item.path || '';
+    
+                    // Формируем строку: Имя (Тип) Описание [URL]
+                    return `- ${name} (${type}) ${desc} [URL: ${url}]`.trim();
+                }).join('\n');
+    
+                const footer = result.length > 50 ? `\n\n...and ${result.length - 50} more items.` : '';
+                
+                return {
+                    content: [{ type: 'text', text: finalOutput + footer }]
+                };
+            }
+    
+            // 3. ОБРАБОТКА ОБЪЕКТОВ (Структура объекта, путь, детали байндинга)
+            // handleObjectStructure возвращает сложный объект
+            const blackList = ['links', 'etag', 'annex'];
+            const cleanObj = JSON.parse(JSON.stringify(result, (key, value) => {
                 if (blackList.includes(key)) return undefined;
                 if (typeof value === 'bigint') return value.toString();
                 return value;
             }));
     
-            // 3. Обработка списков (Самое важное!)
-            if (Array.isArray(clean)) {
-                if (clean.length === 0) return { content: [{ type: 'text', text: 'Empty list' }] };
-    
-                const finalOutput = clean.slice(0, 50).map(item => {
-                    // Пробуем ВСЕ возможные варианты имен полей от разных хендлеров SAP
-                    const name = item.name || item.ObjectName || item.title || item.displayName || 'Unknown';
-                    const type = item.type || item.ObjectType || item.kind || 'OBJ';
-                    const desc = item.description || item.visibility || '';
-                    const url = item.uri || item.path || '';
-    
-                    // Формируем строку так, чтобы n8n видел и имя, и URL для следующего шага
-                    return `- ${name} [${type}] ${desc} | URL: ${url}`.trim();
-                }).join('\n');
-    
-                return { 
-                    content: [{ 
-                        type: 'text', 
-                        text: clean.length > 50 ? `${finalOutput}\n\n...and ${clean.length - 50} more.` : finalOutput 
-                    }] 
-                };
-            }
-    
-            // 4. Одиночный объект
-            return { content: [{ type: 'text', text: JSON.stringify(clean, null, 2) }] };
+            return {
+                content: [{ type: 'text', text: JSON.stringify(cleanObj, null, 2) }]
+            };
     
         } catch (error) {
+            console.error('Serialization error:', error);
             return {
-                content: [{ type: 'text', text: `Error during serialization: ${String(error)}` }],
+                content: [{ type: 'text', text: `Error during data processing: ${String(error)}` }],
                 isError: true
             };
         }
