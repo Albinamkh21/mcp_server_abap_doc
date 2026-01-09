@@ -113,7 +113,7 @@ export class ObjectHandler extends BaseHandler {
             await this.adtclient.login();
             const structure = await this.adtclient.objectStructure(args.objectUrl);
             this.trackRequest(startTime, true);
-            return {
+            return structure; /*{
                 content: [
                     {
                         type: 'text',
@@ -124,7 +124,7 @@ export class ObjectHandler extends BaseHandler {
                         }, null, 2)
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             const errorMessage = error.message || 'Unknown error';
@@ -142,7 +142,7 @@ export class ObjectHandler extends BaseHandler {
             await this.adtclient.login();
             const path = await this.adtclient.findObjectPath(args.objectUrl);
             this.trackRequest(startTime, true);
-            return {
+            return path; /*{
                 content: [
                     {
                         type: 'text',
@@ -153,7 +153,7 @@ export class ObjectHandler extends BaseHandler {
                         }, null, 2)
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             const errorMessage = error.message || 'Unknown error';
@@ -173,7 +173,7 @@ export class ObjectHandler extends BaseHandler {
                 args.query
             );
             this.trackRequest(startTime, true);
-            return {
+            return results; /*{
                 content: [
                     {
                         type: 'text',
@@ -184,7 +184,7 @@ export class ObjectHandler extends BaseHandler {
                         }, null, 2)
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             const errorMessage = error.message || 'Unknown error';
@@ -203,7 +203,7 @@ export class ObjectHandler extends BaseHandler {
             await this.adtclient.login();
             const source = await this.adtclient.getObjectSource(`${args.objectUrl}/source/main`);
             this.trackRequest(startTime, true);
-            return {
+            return source; /*{
                 content: [
                     {
                         type: 'text',
@@ -213,7 +213,7 @@ export class ObjectHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -229,7 +229,7 @@ export class ObjectHandler extends BaseHandler {
             await this.adtclient.login();
             const revisions = await this.adtclient.revisions(args.objectUrl, args.clasInclude);
             this.trackRequest(startTime, true);
-            return {
+            return revisions; /*{
                 content: [
                     {
                         type: 'text',
@@ -239,7 +239,7 @@ export class ObjectHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -258,7 +258,7 @@ export class ObjectHandler extends BaseHandler {
                 args.package_name
             );
             this.trackRequest(startTime, true);
-            return {
+            return nodeContents; /*{
                 content: [
                     {
                         type: 'text',
@@ -268,7 +268,7 @@ export class ObjectHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

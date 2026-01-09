@@ -55,7 +55,7 @@ export class ClassHandler extends BaseHandler {
             await this.adtclient.login();
             const result = await this.adtclient.classComponents(args.objectUrl);
             this.trackRequest(startTime, true);
-            return {
+            return  result; /*{
                 content: [
                     {
                         type: 'text',
@@ -65,7 +65,7 @@ export class ClassHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -81,7 +81,7 @@ export class ClassHandler extends BaseHandler {
             await this.adtclient.login();
             const details = await this.adtclient.bindingDetails(args.binding);
             this.trackRequest(startTime, true);
-            return {
+            return details; /*{
                 content: [
                     {
                         type: 'text',
@@ -91,7 +91,7 @@ export class ClassHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

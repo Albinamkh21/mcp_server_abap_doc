@@ -41,7 +41,7 @@ export class GeneralInfoHandler extends BaseHandler {
             await this.adtclient.login();
             const result = await this.adtclient.annotationDefinitions();
             this.trackRequest(startTime, true);
-            return {
+            return result; /*{
                 content: [
                     {
                         type: 'text',
@@ -51,7 +51,7 @@ export class GeneralInfoHandler extends BaseHandler {
                         })
                     }
                 ]
-            };
+            };*/
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -67,7 +67,7 @@ export class GeneralInfoHandler extends BaseHandler {
             await this.adtclient.login();
             const types = await this.adtclient.objectTypes();
             this.trackRequest(startTime, true);
-            return {
+            return types; /*{
                 content: [
                     {
                         type: 'text',
@@ -78,7 +78,7 @@ export class GeneralInfoHandler extends BaseHandler {
                         }, null, 2)
                     }
                 ]
-            };
+            };*/ 
         } catch (error: any) {
             this.trackRequest(startTime, false);
             const errorMessage = error.message || 'Unknown error';

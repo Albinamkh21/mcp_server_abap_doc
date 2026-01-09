@@ -71,41 +71,54 @@ export class AbapAdtServer extends Server {
         try {
             if (!result) return { content: [{ type: 'text', text: 'No data returned from SAP' }] };
     
-            // 1. Прямой возврат строк (код, логи)
+            // 1. ОБРАБОТКА КОДА (Mariofoo style)
+            // Если это строка, проверяем, не XML ли это, и чистим его
             if (typeof result === 'string') {
-                return { content: [{ type: 'text', text: result.trim() }] };
+                let text = result.trim();
+                if (text.startsWith('<?xml') || text.includes('<adt:')) {
+                    // Оставляем только текст между тегами или удаляем сами теги
+                    text = text.replace(/<[^>]*>?/gm, '').trim(); 
+                }
+                return { content: [{ type: 'text', text: text }] };
             }
     
-            // 2. Глубокая очистка
+            // 2. ОЧИСТКА ОБЪЕКТОВ
+            const blackList = ['links', 'etag', 'annex', 'changed_by', 'created_by', 'changed_at', 'parent_uri'];
             const clean = JSON.parse(JSON.stringify(result, (key, value) => {
-            
-                const blackList = ['links', 'etag', 'annex', 'changed_by', 'created_by', 'changed_at'];
                 if (blackList.includes(key)) return undefined;
                 if (typeof value === 'bigint') return value.toString();
                 return value;
             }));
     
-            // 3. Форматирование массива для экономии контекста
+            // 3. ПРЕОБРАЗОВАНИЕ В ЧИТАЕМЫЙ СПИСОК (Вместо JSON.stringify массивов)
             let finalOutput: string;
             if (Array.isArray(clean)) {
                 if (clean.length === 0) {
                     finalOutput = "Empty list";
                 } else {
-                   
-                    finalOutput = JSON.stringify(clean, null, 1); 
+                    // ПРЕВРАЩАЕМ В ТЕКСТОВУЮ ТАБЛИЦУ/СПИСОК
+                    // LLM понимает это в 10 раз лучше, чем JSON массив
+                    finalOutput = clean.slice(0, 50).map(item => {
+                        const name = item.name || item.ObjectName || '';
+                        const type = item.type || item.ObjectType || '';
+                        const desc = item.description || '';
+                        return `- ${name} (${type}) ${desc}`;
+                    }).join('\n');
+    
+                    if (clean.length > 50) {
+                        finalOutput += `\n\n...and ${clean.length - 50} more objects.`;
+                    }
                 }
             } else {
+                // Если это один объект (например, структура таблицы), оставляем JSON, но красивый
                 finalOutput = JSON.stringify(clean, null, 2);
             }
     
-            return {
-                content: [{ type: 'text', text: finalOutput }]
-            };
+            return { content: [{ type: 'text', text: finalOutput }] };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
             console.error('Serialization error:', error);
             return {
-                content: [{ type: 'text', text: `Error processing SAP response: ${errorMessage}` }],
+                content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
                 isError: true
             };
         }
@@ -227,6 +240,7 @@ export class AbapAdtServer extends Server {
 }
 
 const server = new AbapAdtServer();
+
 
 const app = express();
 app.use(express.json());
