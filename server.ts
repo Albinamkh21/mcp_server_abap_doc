@@ -24,6 +24,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 config({ path: path.resolve(__dirname, '../.env') });
 
+
 export class AbapAdtServer extends Server {
     private adtClient: ADTClient;
     private objectHandler: ObjectHandler;
@@ -59,71 +60,37 @@ export class AbapAdtServer extends Server {
         );
         this.adtClient.stateful = session_types.stateful
 
-        this.objectHandler = new ObjectHandler(this.adtClient);
-        this.classHandler = new ClassHandler(this.adtClient);
+        this.objectHandler = new ObjectHandler();
+        this.classHandler = new ClassHandler();
         this.referenceHandler = new ReferenceHandler(this.adtClient);
         this.generalInfoHandler = new GeneralInfoHandler(this.adtClient);
         this.ddicHandler = new DdicHandler(this.adtClient);
         this.setupToolHandlers();
     }
-
     private serializeResult(result: any) {
         try {
-            // Если данных нет совсем
-            if (!result) return { content: [{ type: 'text', text: 'No data returned from SAP' }] };
-    
-            // 1. ОБРАБОТКА СТРОК (Код, XML)
-            // handleGetObjectSourceCode возвращает чистую строку
-            if (typeof result === 'string') {
-                let text = result.trim();
-                // Чистим XML если он пришел в сыром виде
-                if (text.startsWith('<?xml')) {
-                    text = text.replace(/<[^>]*>?/gm, '').trim(); 
-                }
-                return { content: [{ type: 'text', text: text }] };
+            // 1. Если хендлер вернул пустоту
+            if (!result) {
+                return { content: [{ type: 'text', text: 'No data returned' }] };
             }
     
-            // 2. ОБРАБОТКА МАССИВОВ (Результаты поиска, компоненты класса, история версий)
-            // handleGetObjects и handleClassComponents возвращают массивы объектов
-            if (Array.isArray(result)) {
-                if (result.length === 0) return { content: [{ type: 'text', text: 'Empty list' }] };
-    
-                const finalOutput = result.slice(0, 50).map(item => {
-                    // Прямой доступ к полям библиотеки abap-adt-api
-                    // Имя может быть в разных полях в зависимости от типа объекта
-                    const name = item.name || item.title || item.ObjectName || 'Unknown';
-                    const type = item.type || item.ObjectType || item.kind || '';
-                    const desc = item.description || item.visibility || '';
-                    const url = item.uri || item.path || '';
-    
-                    // Формируем строку: Имя (Тип) Описание [URL]
-                    return `- ${name} (${type}) ${desc} [URL: ${url}]`.trim();
-                }).join('\n');
-    
-                const footer = result.length > 50 ? `\n\n...and ${result.length - 50} more items.` : '';
-                
-                return {
-                    content: [{ type: 'text', text: finalOutput + footer }]
-                };
+            // 2. Если результат уже упакован в формат MCP (есть поле content)
+            // Это основной путь для твоих проверенных return_response из utils.ts
+            if (result && typeof result === 'object' && result.content) {
+                return result;
             }
     
-            // 3. ОБРАБОТКА ОБЪЕКТОВ (Структура объекта, путь, детали байндинга)
-            // handleObjectStructure возвращает сложный объект
-            const blackList = ['links', 'etag', 'annex'];
-            const cleanObj = JSON.parse(JSON.stringify(result, (key, value) => {
-                if (blackList.includes(key)) return undefined;
-                if (typeof value === 'bigint') return value.toString();
-                return value;
-            }));
-    
+            // 3. Фолбэк: если хендлер вернул "сырые" данные (строку или объект)
+            // Мы просто превращаем это в текст, чтобы MCP не выдал ошибку
             return {
-                content: [{ type: 'text', text: JSON.stringify(cleanObj, null, 2) }]
+                content: [{
+                    type: 'text',
+                    text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+                }]
             };
-    
         } catch (error) {
-            console.error('Serialization error:', error);
             return {
-                content: [{ type: 'text', text: `Error during data processing: ${String(error)}` }],
+                content: [{ type: 'text', text: `Serialization Error: ${String(error)}` }],
                 isError: true
             };
         }
@@ -245,7 +212,6 @@ export class AbapAdtServer extends Server {
 }
 
 const server = new AbapAdtServer();
-
 
 const app = express();
 app.use(express.json());

@@ -131,7 +131,7 @@ export class DdicHandler extends BaseHandler {
                 args.getSecondaryObjects
             );
             this.trackRequest(startTime, true);
-            return result; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -141,7 +141,7 @@ export class DdicHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -157,7 +157,7 @@ export class DdicHandler extends BaseHandler {
             await this.adtclient.login();
             const result = await this.adtclient.ddicRepositoryAccess(args.path);
             this.trackRequest(startTime, true);
-            return result; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -167,7 +167,7 @@ export class DdicHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

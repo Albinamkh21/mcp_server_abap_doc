@@ -50,7 +50,7 @@ export class ReferenceHandler extends BaseHandler {
                 args.objectUrl
             );
             this.trackRequest(startTime, true);
-            return result; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -60,7 +60,7 @@ export class ReferenceHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -77,7 +77,7 @@ export class ReferenceHandler extends BaseHandler {
             await this.adtclient.login();
             const result = await this.adtclient.usageReferenceSnippets(args.usageReferences);
             this.trackRequest(startTime, true);
-            return result; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -87,7 +87,7 @@ export class ReferenceHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(
@@ -102,7 +102,7 @@ export class ReferenceHandler extends BaseHandler {
         try {
             const mainPrograms = await this.adtclient.mainPrograms(args.includeUrl);
             this.trackRequest(startTime, true);
-            return mainPrograms; /*{
+            return {
                 content: [
                     {
                         type: 'text',
@@ -112,7 +112,7 @@ export class ReferenceHandler extends BaseHandler {
                         })
                     }
                 ]
-            };*/
+            };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

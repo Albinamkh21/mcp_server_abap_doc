@@ -1,18 +1,11 @@
-import { 
-    McpError, 
-    ErrorCode, 
-    makeAdtRequest, 
-    return_error, 
-    return_response, 
-    getBaseUrl, 
-    transformClassStructure,
-    transformClassStructureClean 
-} from '../utils/utils.js'; 
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { transformClassStructure } from '../utils/utils.js';
+
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
+import { ADTClient } from 'abap-adt-api';
 
-export class ClassHandler  {
-    
+export class ClassHandler__ extends BaseHandler {
     getTools(): ToolDefinition[] {
         return [
             {
@@ -56,41 +49,48 @@ export class ClassHandler  {
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown class tool: ${toolName}`);
         }
     }
+
+
+
     async handleClassComponents(args: any): Promise<any> {
+        const startTime = performance.now();
         try {
-            if (!args?.objectUrl) {
-                throw new McpError(ErrorCode.InvalidParams, 'Object URL is required');
-            }
-    
-            const baseUrl = await getBaseUrl();
-            const url = `${baseUrl}${args.objectUrl}/objectstructure`;
-    
-            const response = await makeAdtRequest(url, 'GET', 30000);
-            
-         
-            return return_response(response, transformClassStructureClean);
-        } catch (error) {
-            return return_error(error);
+            await this.adtclient.login();
+            const result = await this.adtclient.classComponents(args.objectUrl);
+            this.trackRequest(startTime, true);
+
+            // Применяем трансформер из mariofoo utils
+            const transformed = transformClassStructure(result);
+
+            return {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify(transformed, null, 2)
+                }]
+            };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Class components error: ${error.message}`);
         }
     }
 
     async handleBindingDetails(args: any): Promise<any> {
+        const startTime = performance.now();
         try {
-            if (!args?.objectUrl) {
-                throw new McpError(ErrorCode.InvalidParams, 'Object URL is required');
-            }
-    
-            const baseUrl = await getBaseUrl();
-            
-        
-            const url = `${baseUrl}${args.objectUrl}`; 
-    
-            const response = await makeAdtRequest(url, 'GET', 30000);
-    
-        
-            return return_response(response); 
-        } catch (error) {
-            return return_error(error);
+            await this.adtclient.login();
+            const details = await this.adtclient.bindingDetails(args.binding);
+            this.trackRequest(startTime, true);
+
+            // Так как в utils.ts нет transformBindingDetails, 
+            // возвращаем результат напрямую как объект.
+            // Наш сервер (server.ts) сам упакует его в JSON через serializeResult.
+            return details;
+
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Binding details error: ${error.message}`);
         }
     }
 }
+
+   

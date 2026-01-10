@@ -1,8 +1,18 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
+import { 
+    makeAdtRequest, 
+    return_error, 
+    return_response, 
+    getBaseUrl, 
+    transformSearchResults, 
+    transformAbapSource,
+    transformObjectMeta,
+    xmlArray 
+} from '../utils/utils.js';
 
-export class ObjectHandler extends BaseHandler {
+export class ObjectHandler  {
     getTools(): ToolDefinition[] {
         return [
             {
@@ -21,7 +31,7 @@ export class ObjectHandler extends BaseHandler {
             },
             {
                 name: 'getObjectStructure',
-                description: 'Retrieves technical metadata and structural components of an ABAP object. Returns core attributes, object links, URIs for individual source segments (definitions, implementations, and test classes)',
+                description: 'Retrieves technical metadata and structural components of an ABAP object.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -35,7 +45,7 @@ export class ObjectHandler extends BaseHandler {
             },
             {
                 name: 'getObjectSourceCode',
-                description: 'Retrieves source code for a ABAP object. Use this tool when you need to read or analyze existing ABAP code.',
+                description: 'Retrieves source code for a ABAP object.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -46,7 +56,7 @@ export class ObjectHandler extends BaseHandler {
             },
             {
                 name: 'getObjectFullPath',
-                description: 'Retrieves the full hierarchical path of an ABAP object within the systems package structure, starting from its root package down to the object itself',
+                description: 'Retrieves the full hierarchical path of an ABAP object.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -60,7 +70,7 @@ export class ObjectHandler extends BaseHandler {
             },
             {
                 name: 'getObjectVersionHistory',
-                description: 'Retrieves version history for a specific object or one of its includes. Returns list of revision links with the date and author of each change',
+                description: 'Retrieves version history for a specific object.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -107,177 +117,92 @@ export class ObjectHandler extends BaseHandler {
         }
     }
 
-    async handleObjectStructure(args: any): Promise<any> {
-        const startTime = performance.now();
-        try {
-            await this.adtclient.login();
-            const structure = await this.adtclient.objectStructure(args.objectUrl);
-            this.trackRequest(startTime, true);
-            return structure; /*{
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            structure,
-                            message: 'Object structure retrieved successfully'
-                        }, null, 2)
-                    }
-                ]
-            };*/
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            const errorMessage = error.message || 'Unknown error';
-            const detailedError = error.response?.data?.message || errorMessage;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get object structure: ${detailedError}`
-            );
-        }
-    }
-
-    async handleGetObjectPath(args: any): Promise<any> {
-        const startTime = performance.now();
-        try {
-            await this.adtclient.login();
-            const path = await this.adtclient.findObjectPath(args.objectUrl);
-            this.trackRequest(startTime, true);
-            return path; /*{
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            path,
-                            message: 'Object path found successfully'
-                        }, null, 2)
-                    }
-                ]
-            };*/
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            const errorMessage = error.message || 'Unknown error';
-            const detailedError = error.response?.data?.message || errorMessage;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to find object path: ${detailedError}`
-            );
-        }
-    }
-
     async handleGetObjects(args: any): Promise<any> {
-        const startTime = performance.now();
         try {
-            await this.adtclient.login();
-
-            const searchQuery = args.query.replace(/\.\*/g, '*');
-
-            const results = await this.adtclient.searchObject(
-               searchQuery
-            );
-            this.trackRequest(startTime, true);
-            return results; /*{
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            results,
-                            message: 'Object search completed successfully'
-                        }, null, 2)
-                    }
-                ]
-            };*/
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            const errorMessage = error.message || 'Unknown error';
-            const detailedError = error.response?.data?.message || errorMessage;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to search objects: ${detailedError}`
-            );
+            if (!args?.query) {
+                throw new McpError(ErrorCode.InvalidParams, 'Search query is required');
+            }
+            const query = args.query.replace(/\.\*/g, '*');
+            const maxResults = args.maxResults || 100;
+            const encodedQuery = encodeURIComponent(query);
+            const url = `${await getBaseUrl()}/sap/bc/adt/repository/informationsystem/search?operation=quickSearch&query=${encodedQuery}&maxResults=${maxResults}`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response, transformSearchResults);
+        } catch (error) {
+            return return_error(error);
         }
     }
 
+    async handleObjectStructure(args: any): Promise<any> {
+        try {
+            if (!args?.objectUrl) {
+                throw new McpError(ErrorCode.InvalidParams, 'Object URL is required');
+            }
+            const url = `${await getBaseUrl()}${args.objectUrl}`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response, transformObjectMeta);
+        } catch (error) {
+            return return_error(error);
+        }
+    }
 
     async handleGetObjectSourceCode(args: any): Promise<any> {
-        const startTime = performance.now();
         try {
-            await this.adtclient.login();
-            const source = await this.adtclient.getObjectSource(`${args.objectUrl}/source/main`);
-            this.trackRequest(startTime, true);
-            return source; /*{
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            source
-                        })
-                    }
-                ]
-            };*/
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get object source: ${error.message || 'Unknown error'}`
-            );
+            if (!args?.objectUrl) {
+                throw new McpError(ErrorCode.InvalidParams, 'Object URL is required');
+            }
+            const sourceUrl = args.objectUrl.includes('/source/main') ? args.objectUrl : `${args.objectUrl}/source/main`;
+            const url = `${await getBaseUrl()}${sourceUrl}`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response, transformAbapSource);
+        } catch (error) {
+            return return_error(error);
         }
+    }
+
+   
+
+    async handleGetObjectPath(args: any): Promise<any> {
+        const { data } = await makeAdtRequest(`${await getBaseUrl()}${args.objectUrl}`, 'GET', 30000);
+        
+        // Берем любой корень (класс, программу или таблицу)
+        const root = data['class:abapClass'] || data['adtcore:object'] || data['program:abapProgram'] || data['table:abapTable'];
+        const attrs = root?._attributes || {};
+    
+        return {
+            path: `${root?.['adtcore:packageRef']?._attributes?.['adtcore:name'] || 'TMP'} > ${attrs['adtcore:name']}`
+        };
     }
 
     async handleObjectVersionHistory(args: any): Promise<any> {
-        const startTime = performance.now();
         try {
-            await this.adtclient.login();
-            const revisions = await this.adtclient.revisions(args.objectUrl, args.clasInclude);
-            this.trackRequest(startTime, true);
-            return revisions; /*{
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            revisions
-                        })
-                    }
-                ]
-            };*/
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get revisions: ${error.message || 'Unknown error'}`
-            );
+            if (!args?.objectUrl) {
+                throw new McpError(ErrorCode.InvalidParams, 'Object URL is required');
+            }
+    
+            const baseUrl = await getBaseUrl();
+         
+            const url = `${baseUrl}/sap/bc/adt/repository/revisions?uri=${encodeURIComponent(args.objectUrl)}`;
+    
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            
+          
+            return return_response(response, (data) => data); 
+        } catch (error) {
+            return return_error(error);
         }
     }
 
     async handlePackageObjects(args: any): Promise<any> {
-        const startTime = performance.now();
         try {
-            await this.adtclient.login();
-            const nodeContents = await this.adtclient.nodeContents(
-                'DEVC/K',
-                args.package_name
-            );
-            this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            nodeContents
-                        })
-                    }
-                ]
-            };
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get node contents: ${error.message || 'Unknown error'}`
-            );
+            if (!args?.package_name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Package name is required');
+            }
+            const url = `${await getBaseUrl()}/sap/bc/adt/repository/nodestructure?parent_name=${encodeURIComponent(args.package_name)}&parent_type=DEVC/K`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response);
+        } catch (error) {
+            return return_error(error);
         }
     }
 }
