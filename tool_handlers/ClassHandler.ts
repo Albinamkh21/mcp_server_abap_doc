@@ -35,12 +35,12 @@ export class ClassHandler  {
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        binding: {
-                            type: 'object',
-                            description: 'The service binding.'
+                        objectUrl: {
+                            type: 'string',
+                            description: 'The URL of the class'
                         }
                     },
-                    required: ['binding']
+                    required: ['objectUrl']
                 }
             }
         ];

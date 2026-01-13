@@ -60,7 +60,7 @@ export class AbapAdtServer extends Server {
         );
         this.adtClient.stateful = session_types.stateful
 
-        this.objectHandler = new ObjectHandler();
+        this.objectHandler = new ObjectHandler(this.adtClient);
         this.classHandler = new ClassHandler();
         this.referenceHandler = new ReferenceHandler(this.adtClient);
         this.generalInfoHandler = new GeneralInfoHandler(this.adtClient);
@@ -176,6 +176,12 @@ export class AbapAdtServer extends Server {
                     case 'getObjectFullPath':
                     case 'getObjectVersionHistory':
                     case 'getPackageObjects':
+                    case 'getFunction':    
+                    case 'getFunctionGroup':  
+                    case 'getInclude':    
+                    case 'getInterface':  
+                    case 'getProgram':
+                    case 'getTransaction':    
                         result = await this.objectHandler.handle(request.params.name, request.params.arguments);
                         break;
                     case 'getClassComponents':
@@ -191,6 +197,8 @@ export class AbapAdtServer extends Server {
                         result = await this.generalInfoHandler.handle(request.params.name, request.params.arguments);
                         break;
                     case 'getDdicElementDetails':
+                    case 'getTable':    
+                    case  'getTypeInfo':
                     case 'getPackagesByName':
                     case 'getTableContent':
                     case 'runSqlQuery':

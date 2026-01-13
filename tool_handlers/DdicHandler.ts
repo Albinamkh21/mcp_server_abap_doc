@@ -1,6 +1,16 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
+import { 
+    getBaseUrl, 
+    makeAdtRequest, 
+    return_response, 
+    return_error, 
+    transformPackageInfo,
+    transformStructureDefinition, 
+    transformTableContents,
+    transformTypeInfo       
+} from '../utils/utils.js';
 
 export class DdicHandler extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -11,27 +21,43 @@ export class DdicHandler extends BaseHandler {
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        path: {
+                        structure_name: {
                             type: 'string',
-                            description: 'Name of DDIC element'
-                        },
-                        getTargetForAssociation: {
-                            type: 'boolean',
-                            description: 'Whether to get the target for association.',
-                            optional: true
-                        },
-                        getExtensionViews: {
-                            type: 'boolean',
-                            description: 'Whether to get extension views.',
-                            optional: true
-                        },
-                        getSecondaryObjects: {
-                            type: 'boolean',
-                            description: 'Whether to get secondary objects.',
+                            description: 'Structure name',
                             optional: true
                         }
                     },
-                    required: ['path']
+                    required: ['structure_name']
+                }
+            },
+            {
+                name: 'getTable',
+                description: 'Get table infornation.  Fields, keys, data types, include structures, technical settings (partially)',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        table_name: {
+                            type: 'string',
+                            description: 'Table name',
+                            optional: true
+                        }
+                    },
+                    required: ['table_name']
+                }
+            },
+            {
+                name: 'getTypeInfo',
+                description: 'Retrieves metadata of an ABAP data type by name. Returns the definition of a Domain or Data Element, including type, length, description, and fixed values if applicable.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        type_name: {
+                            type: 'string',
+                            description: 'Type name',
+                            optional: true
+                        }
+                    },
+                    required: ['type_name']
                 }
             },
             {
@@ -46,7 +72,7 @@ export class DdicHandler extends BaseHandler {
                             optional: true
                         }
                     },
-                    required: ['type']
+                    required: ['name']
                 }
             },
             {
@@ -55,27 +81,18 @@ export class DdicHandler extends BaseHandler {
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        ddicEntityName: {
+                        table_name: {
                             type: 'string',
                             description: 'The name of the DDIC entity (table or view)'
                         },
-                        rowNumber: {
+                        maxRows: {
                             type: 'number',
                             description: 'The maximum number of rows to retrieve.',
                             optional: true
                         },
-                        decode: {
-                            type: 'boolean',
-                            description: 'Whether to decode the data.',
-                            optional: true
-                        },
-                        sqlQuery: {
-                            type: 'string',
-                            description: 'An optional SQL query to filter the data.',
-                            optional: true
-                        }
+                  
                     },
-                    required: ['ddicEntityName']
+                    required: ['table_name']
                 }
             },
             {
@@ -109,6 +126,10 @@ export class DdicHandler extends BaseHandler {
         switch (toolName) {
             case 'getDdicElementDetails':
                 return this.handleDdicElement(args);
+            case 'getTable':
+                return this.handleGetTable(args);   
+            case 'getTypeInfo':
+                return this.handleGetTypeInfo(args);  
             case 'getPackagesByName':
                 return this.handleGetPackages(args);
             case 'getTableContent':
@@ -121,35 +142,33 @@ export class DdicHandler extends BaseHandler {
     }
 
     async handleDdicElement(args: any): Promise<any> {
-        const startTime = performance.now();
         try {
-            await this.adtclient.login();
-            const result = await this.adtclient.ddicElement(
-                args.path,
-                args.getTargetForAssociation,
-                args.getExtensionViews,
-                args.getSecondaryObjects
-            );
-            this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get DDIC element: ${error.message || 'Unknown error'}`
-            );
+            if (!args?.structure_name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Structure name is required');
+            }
+            const encodedStructureName = encodeURIComponent(args.structure_name);
+            const url = `${await getBaseUrl()}/sap/bc/adt/ddic/structures/${encodedStructureName}/source/main`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response); // Remove transformer - returns raw structure definition
+        } catch (error) {
+            return return_error(error);
         }
     }
+    async handleGetTable(args: any) {
+        
+        try {
+            if (!args?.table_name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Table name is required');
+            }
+            const encodedTableName = encodeURIComponent(args.table_name);
+            const url = `${await getBaseUrl()}/sap/bc/adt/ddic/tables/${encodedTableName}/source/main`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response); // Remove transformer - returns raw table definition
+        } catch (error) {
+            return return_error(error);
+        }
+    }
+
 
     async handleDdicRepositoryAccess(args: any): Promise<any> {
         const startTime = performance.now();
@@ -157,79 +176,88 @@ export class DdicHandler extends BaseHandler {
             await this.adtclient.login();
             const result = await this.adtclient.ddicRepositoryAccess(args.path);
             this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
+            const mockResponse = { data: result } as any;
+            return return_response(mockResponse);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to access DDIC repository: ${error.message || 'Unknown error'}`
-            );
+            return return_error(error);
         }
     }
 
-    async handleGetPackages(args: any): Promise<any> {
-        const startTime = performance.now();
+    async  handleGetPackages(args: any): Promise<any> {
         try {
-            await this.adtclient.login();
-            const result = await this.adtclient.packageSearchHelp('softwarecomponents', args.name);
-            this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
+            if (!args?.name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Package name is required');
+            }
+    
+            const baseUrl = await getBaseUrl();
+            const url = `${baseUrl}/sap/bc/adt/repository/nodestructure`;
+    
+        
+            const params = {
+                parent_type: "DEVC/K",               
+                parent_name: args.name.toUpperCase(), 
+                withShortDescriptions: true          
             };
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get package search help: ${error.message || 'Unknown error'}`
-            );
+    
+           
+            const response = await makeAdtRequest(url, 'POST', 30000, undefined, params);
+    
+          
+            return return_response(response, transformPackageInfo);
+    
+        } catch (error) {
+            return return_error(error);
         }
     }
+
 
     async handleTableContents(args: any): Promise<any> {
         const startTime = performance.now();
         try {
             await this.adtclient.login();
             const result = await this.adtclient.tableContents(
-                args.ddicEntityName,
-                args.rowNumber,
-                args.decode,
-                args.sqlQuery
+                args.table_name,
+                args.maxRows,
+               /* args.decode,
+                args.sqlQuery*/
             );
             this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
-        } catch (error: any) {
-            this.trackRequest(startTime, false);
-            throw new Error(`Failed to retrieve table contents: ${error.message || 'Unknown error'}`);
+            const manualResponse = {
+                data: result, 
+                status: 200,
+                statusText: 'OK',
+                headers: {},
+                config: {}
+            } as any;
+    
+         
+            return return_response(manualResponse, transformTableContents);
+        } catch (error) {
+            return return_error(error);
         }
     }
+/*
+    async  handleTableContents(args: any) {
+        try {
+            if (!args?.table_name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Table name is required');
+            }
+            const maxRows = args.max_rows || 100;
+            const encodedTableName = encodeURIComponent(args.table_name);
+            
+            // NOTE: This service requires a custom SAP service implementation
+            // You need to implement /z_mcp_abap_adt/z_tablecontent/ in your SAP system
+            const url = `${await getBaseUrl()}/z_mcp_abap_adt/z_tablecontent/${encodedTableName}?maxRows=${maxRows}`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response); // Return raw response (likely JSON from custom service)
+        } catch (error) {
+            // Enhanced error message for GetTableContents since it requires custom implementation
+            const errorMsg = `GetTableContents requires custom SAP service '/z_mcp_abap_adt/z_tablecontent/'. Original error: ${error}`;
+            return return_error(new Error(errorMsg));
+        }
+}
+*/
 
     async handleRunQuery(args: any): Promise<any> {
         const startTime = performance.now();
@@ -241,20 +269,42 @@ export class DdicHandler extends BaseHandler {
                 args.decode
             );
             this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
+            const mockResponse = { data: result } as any;
+            return return_response(mockResponse, transformTableContents);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new Error(`Failed to run query: ${error.message || 'Unknown error'}`);
+            return return_error(error);
+        }
+    }
+
+    async  handleGetTypeInfo(args: any) {
+        try {
+            if (!args?.type_name) {
+                throw new McpError(ErrorCode.InvalidParams, 'Type name is required');
+            }
+        } catch (error) {
+            return return_error(error);
+        }
+    
+        const encodedTypeName = encodeURIComponent(args.type_name);
+    
+    
+        try {
+    
+            const url = `${await getBaseUrl()}/sap/bc/adt/ddic/domains/${encodedTypeName}/source/main`;
+            const response = await makeAdtRequest(url, 'GET', 30000);
+            return return_response(response, transformTypeInfo);
+        } catch (error) {
+    
+            // no domain found, try data element
+            try {
+                const url = `${await getBaseUrl()}/sap/bc/adt/ddic/dataelements/${encodedTypeName}`;
+                const response = await makeAdtRequest(url, 'GET', 30000);
+                return return_response(response, transformTypeInfo);
+            } catch (error) {
+                return return_error(error);
+            }
+    
         }
     }
 }
